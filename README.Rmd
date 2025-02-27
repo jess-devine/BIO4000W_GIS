@@ -3,6 +3,7 @@ title: "README"
 author: "Jess Devine"
 date: "2025-02-27"
 output: rmarkdown::github_document
+always_allow_html: true
 ---
 
 ```{r setup, include=FALSE}
@@ -12,23 +13,20 @@ library(tidyverse)
 library(rinat)
 library(rosm)
 library(ggspatial)
-library(leaflet)
+library(leaflet) 
 library(htmltools)
-library(mapview)
-library(leafpop)
+library(mapview) 
+library(leafpop) 
 library(wesanderson)
 ```
 
-## R Markdown
+## BIO4000W GIS Deliverable
 
 ```{r step1}
-veg <- st_read("data/cape_peninsula/veg/Vegetation_Indigenous.shp")
+veg <- st_read("data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous.shp")
 #st_write(veg, "data/cape_peninsula/veg/Vegetation_Indigenous_duplicate.shp", append = FALSE)
 plot(veg)
 ```
-
-## Including Plots
-
 
 ```{r cropping, echo=FALSE}
 ext <- c(-66642.18, -3809853.29, -44412.18, -3750723.29) 
@@ -37,80 +35,88 @@ veg <- st_crop(veg, ext)
 ggplot() + geom_sf(data=veg, aes(fill = `National_`))
 ```
 
-``` {r inat}
+```{r inat}
 # read in inat observations for Virgilia divaricata
-vd <- get_inat_obs(taxon_name = "Virgilia divaricata",
+rm <- get_inat_obs(taxon_name = "Rapanea melanophloeos",
                    bounds = c(-35, 18, -33.5, 18.5),
                    maxresults = 1000)
+dim(rm)
 # take only observations with geographic precision, southern hemisphere, has coordinates, isn't captive and is of research quality 
-vd <- vd %>% filter(positional_accuracy<46 & 
+rm <- rm %>% filter(positional_accuracy<46 & 
                 latitude<0 &
                 !is.na(latitude) &
                 captive_cultivated == "false" &
                 quality_grade == "research")
-# make vd a spartial object
-vd <- st_as_sf(vd, coords = c("longitude", "latitude"), crs = 4326)
+dim(rm)
+# make rm a spartial object
+rm <- st_as_sf(rm, coords = c("longitude", "latitude"), crs = 4326)
 ```
 
-``` {r plotting}
+```{r plotting}
 ggplot() + 
   annotation_map_tile(type = "osm", progress = "none") + 
-  geom_sf(data=vd)
+  geom_sf(data=rm)
 leaflet() %>%
   # Add default OpenStreetMap map tiles
   addTiles(group = "Default") %>%  
   # Add our points
-  addCircleMarkers(data = vd,
+  addCircleMarkers(data = rm,
                    group = "Virgilia divaricata",
                    radius = 3, 
                    color = "green") 
-mapview(vg, 
+mapview(rm, 
         popup = 
-          popupTable(vg,
+          popupTable(rm,
             zcol = c("user_login", "captive_cultivated", "url")))
 
-lvg <- vg %>%
+lrm <- rm %>%
   mutate(click_url = paste("<b><a href='", url, "'>Link to iNat observation</a></b>"))
 
-mapview(vg, 
+mapview(rm, 
         popup = 
-          popupTable(lvg,
+          popupTable(lrm,
             zcol = c("user_login", "captive_cultivated", "click_url")))
 ```
 
 ```{r reprojecting}
 #Get the remnants layer
-vegr <- st_read("data/cape_peninsula/veg/Vegetation_Indigenous_Remnants.shp")
-vg <- st_transform(vg, st_crs(vegr)) 
-#call the dimensions of vg
-dim(vg)  
-pc <- st_intersection(pc, vegr)
-dim(pc)
+vegr <- st_read("data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous_Remnants.shp")
+rm <- st_transform(rm, st_crs(vegr)) 
+#call the dimensions of rm
+dim(rm)  
+
+# remove observtaions in urban area
+rm <- st_intersection(rm, vegr)
+dim(rm)
 ggplot() + 
   annotation_map_tile(type = "osm", progress = "none") + 
-  geom_sf(data=pc)
+  geom_sf(data=rm)
 
-pal <- wes_palette("Darjeeling1", 7, type = "continuous")
+pal <- wes_palette("Zissou1", 8, type = "continuous")
 
 ggplot() + 
   annotation_map_tile(type = "osm", progress = "none") + 
-  geom_sf(data=pc, aes(col = National_)) +
+  geom_sf(data=rm, aes(col = National_)) +
   scale_colour_manual(values = pal)
-pc %>% group_by(National_) %>% summarise(n())
+rm %>% group_by(National_) %>% summarise(n())
 ```
 
 ```{r buffering}
-#Find the localities that are not in Peninsula Sandstone Fynbos and add a 250m buffer
-npsf <- pc %>% 
-  filter(National_ != "Peninsula Sandstone Fynbos") %>%
+#Find the localities that are not in Southern Afrotemperate Forest and add a 250m buffer
+npsf <- rm %>% 
+  filter(National_ != "Southern Afrotemperate Forest") %>%
   st_buffer(dist = 250)
 
 #NOTE that st_buffer() makes them polygons, because they now have area!
 npsf$geometry[1] #The first geometry in npsf
 #Get the number of unique iNaturalist record numbers
 length(unique(npsf$id)) 
-#Intersect new polygons with veg remnants and filter for those that overlap Peninsula Sandstone Fynbos only
-npsf <- st_intersection(npsf, vegr) %>% filter(National_.1 == "Peninsula Sandstone Fynbos")
+#Intersect new polygons with veg remnants and filter for those that overlap Southern Afrotemperate Forest only
+npsf <- st_intersection(npsf, vegr) %>% filter(National_.1 == "Southern Afrotemperate Forest")
 #Get the number of unique iNaturalist record numbers that overlap PSF
 length(unique(npsf$id))
+```
+
+```{r analysis}
+
 ```
