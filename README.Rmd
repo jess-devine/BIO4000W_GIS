@@ -25,7 +25,12 @@ library(wesanderson)
 ```{r step1}
 veg <- st_read("data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous.shp")
 #st_write(veg, "data/cape_peninsula/veg/Vegetation_Indigenous_duplicate.shp", append = FALSE)
-plot(veg)
+names(veg)
+ggplot() + 
+  geom_sf(data = veg, aes(fill = National_)) +
+  scale_fill_viridis_d() +  # Uses a nice color scale
+  theme_minimal()
+
 ```
 
 ```{r cropping, echo=FALSE}
@@ -36,7 +41,7 @@ ggplot() + geom_sf(data=veg, aes(fill = `National_`))
 ```
 
 ```{r inat}
-# read in inat observations for Virgilia divaricata
+# read in inat observations for Rapanea melanophloeos
 rm <- get_inat_obs(taxon_name = "Rapanea melanophloeos",
                    bounds = c(-35, 18, -33.5, 18.5),
                    maxresults = 1000)
