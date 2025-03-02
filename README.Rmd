@@ -22,7 +22,7 @@ library(wesanderson)
 
 ## BIO4000W GIS Deliverable
 
-```{r step1}
+```{r vegdata}
 veg <- st_read("data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous.shp")
 #st_write(veg, "data/cape_peninsula/veg/Vegetation_Indigenous_duplicate.shp", append = FALSE)
 names(veg)
@@ -39,8 +39,14 @@ names(ext) <- c("xmin", "ymin", "xmax", "ymax")
 veg <- st_crop(veg, ext)
 ggplot() + geom_sf(data=veg, aes(fill = `National_`))
 ```
+```{r test}
+ext <- c(-66642.18, -3809853.29, -44412.18, -3750723.29) 
+names(ext) <- c("xmin", "ymin", "xmax", "ymax") 
+veg <- st_crop(veg, ext)
+ggplot() + geom_sf(data=veg, aes(fill = `National_`))
+```
 
-```{r inat}
+```{r inatdata}
 # read in inat observations for Rapanea melanophloeos
 rm <- get_inat_obs(taxon_name = "Rapanea melanophloeos",
                    bounds = c(-35, 18, -33.5, 18.5),
@@ -105,23 +111,52 @@ ggplot() +
   scale_colour_manual(values = pal)
 rm %>% group_by(National_) %>% summarise(n())
 ```
+343 rm outside saf
 
 ```{r buffering}
 #Find the localities that are not in Southern Afrotemperate Forest and add a 250m buffer
-npsf <- rm %>% 
+nsaf <- rm %>% 
   filter(National_ != "Southern Afrotemperate Forest") %>%
   st_buffer(dist = 250)
-
-#NOTE that st_buffer() makes them polygons, because they now have area!
-npsf$geometry[1] #The first geometry in npsf
 #Get the number of unique iNaturalist record numbers
-length(unique(npsf$id)) 
+length(unique(nsaf$id)) 
 #Intersect new polygons with veg remnants and filter for those that overlap Southern Afrotemperate Forest only
-npsf <- st_intersection(npsf, vegr) %>% filter(National_.1 == "Southern Afrotemperate Forest")
+nsaf <- st_intersection(nsaf, vegr) %>% filter(National_.1 == "Southern Afrotemperate Forest")
 #Get the number of unique iNaturalist record numbers that overlap PSF
-length(unique(npsf$id))
+length(unique(nsaf$id))
+314-75
 ```
+314 rm records originally outside saf
+75 rm records near saf
+239 remain outside saf
 
-```{r analysis}
+```{R final}
+
+library(leaflet)
+
+# Ensure correct CRS
+rm <- st_transform(rm, crs = 4326)
+
+# Define a color palette function for National_ categories
+pal <- colorFactor(viridis::viridis(length(unique(rm$National_))), 
+                   domain = rm$National_)
+
+leaflet(rm) %>%
+  addTiles() %>%  # Base map
+  addCircleMarkers(
+    radius = 4, 
+    color = ~pal(National_),  # Apply color function
+    popup = ~paste0("<b>National Vegetation:</b> ", National_, "<br>",
+                    "<b>Observation Link:</b> <a href='", url, "' target='_blank'>iNat</a>"),
+    group = "Observations"
+  ) %>%
+  addLegend(
+    "bottomright",
+    pal = pal,
+    values = rm$National_,
+    title = "National Vegetation Type",
+    opacity = 1
+  )
+
 
 ```
