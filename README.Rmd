@@ -39,15 +39,12 @@ names(ext) <- c("xmin", "ymin", "xmax", "ymax")
 veg <- st_crop(veg, ext)
 ggplot() + geom_sf(data=veg, aes(fill = `National_`))
 ```
-```{r test}
-ext <- c(-66642.18, -3809853.29, -44412.18, -3750723.29) 
-names(ext) <- c("xmin", "ymin", "xmax", "ymax") 
-veg <- st_crop(veg, ext)
-ggplot() + geom_sf(data=veg, aes(fill = `National_`))
-```
 
 ```{r inatdata}
-# read in inat observations for Rapanea melanophloeos
+# Kiggelaria africana (Wild Peach)
+# Virgilia oroboides (Cape Keurboom)
+# Virgilia divaricata (Garden Route Keurboom)
+# read in inat observations for Rapanea melanophloeos (Cape Beech)
 rm <- get_inat_obs(taxon_name = "Rapanea melanophloeos",
                    bounds = c(-35, 18, -33.5, 18.5),
                    maxresults = 1000)
@@ -67,26 +64,6 @@ rm <- st_as_sf(rm, coords = c("longitude", "latitude"), crs = 4326)
 ggplot() + 
   annotation_map_tile(type = "osm", progress = "none") + 
   geom_sf(data=rm)
-leaflet() %>%
-  # Add default OpenStreetMap map tiles
-  addTiles(group = "Default") %>%  
-  # Add our points
-  addCircleMarkers(data = rm,
-                   group = "Virgilia divaricata",
-                   radius = 3, 
-                   color = "green") 
-mapview(rm, 
-        popup = 
-          popupTable(rm,
-            zcol = c("user_login", "captive_cultivated", "url")))
-
-lrm <- rm %>%
-  mutate(click_url = paste("<b><a href='", url, "'>Link to iNat observation</a></b>"))
-
-mapview(rm, 
-        popup = 
-          popupTable(lrm,
-            zcol = c("user_login", "captive_cultivated", "click_url")))
 ```
 
 ```{r reprojecting}
@@ -132,11 +109,6 @@ length(unique(nsaf$id))
 
 ```{R final}
 
-library(leaflet)
-
-# Ensure correct CRS
-rm <- st_transform(rm, crs = 4326)
-
 # Define a color palette function for National_ categories
 pal <- colorFactor(viridis::viridis(length(unique(rm$National_))), 
                    domain = rm$National_)
@@ -155,6 +127,36 @@ leaflet(rm) %>%
     pal = pal,
     values = rm$National_,
     title = "National Vegetation Type",
+    opacity = 1
+  )
+```
+
+```{r all}
+# Load leaflet and create custom icons for species
+library(leaflet)
+
+species_icons <- iconList(
+  "Rapanea melanophloeos" = makeIcon("icons/rapanea.png", iconWidth = 20, iconHeight = 20),
+  "Kiggelaria africana" = makeIcon("icons/kiggelaria.png", iconWidth = 20, iconHeight = 20),
+  "Virgilia oroboides" = makeIcon("icons/virgilia_o.png", iconWidth = 20, iconHeight = 20),
+  "Virgilia divaricata" = makeIcon("icons/virgilia_d.png", iconWidth = 20, iconHeight = 20)
+)
+
+leaflet(inat_data) %>%
+  addTiles() %>%
+  addMarkers(
+    icon = ~species_icons[species],  # Assign species-specific icons
+    popup = ~paste0("<b>Species:</b> ", species, "<br>",
+                    "<b>National Vegetation:</b> ", National_, "<br>",
+                    "<b>Distance from Afrotemperate Forest:</b> ", within_250m, "<br>",
+                    "<b>Observation Link:</b> <a href='", url, "' target='_blank'>iNat</a>"),
+    group = "Observations"
+  ) %>%
+  addLegend(
+    "bottomright",
+    pal = pal,
+    values = inat_data$color_group,
+    title = "Distance & Vegetation Type",
     opacity = 1
   )
 
