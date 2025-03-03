@@ -6,6 +6,10 @@ output: rmarkdown::github_document
 always_allow_html: true
 ---
 
+BIO4000W GIS Deliverable
+
+Species that are Southern Afrotempraet Forest pioneers: Virgilia oroboides (Cape Keurboom), Virgilia divaricata (Garden Route Keurboom), Rapanea melanophloeos (Cape Beech), and Kiggelaria africana (Wild Peach). 
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(sf)
@@ -20,104 +24,98 @@ library(leafpop)
 library(wesanderson)
 ```
 
-## BIO4000W GIS Deliverable
+```{r parameters}
+# Define species name (change this variable for different species)
+species_name <- "Kiggelaria africana"  
+
+# Define bounding box (change if needed)
+bounds <- c(-35, 18, -33.5, 18.5)
+```
 
 ```{r vegdata}
 veg <- st_read("data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous.shp")
-#st_write(veg, "data/cape_peninsula/veg/Vegetation_Indigenous_duplicate.shp", append = FALSE)
-names(veg)
+
 ggplot() + 
   geom_sf(data = veg, aes(fill = National_)) +
-  scale_fill_viridis_d() +  # Uses a nice color scale
+  scale_fill_viridis_d() +
   theme_minimal()
-
 ```
 
 ```{r cropping, echo=FALSE}
 ext <- c(-66642.18, -3809853.29, -44412.18, -3750723.29) 
 names(ext) <- c("xmin", "ymin", "xmax", "ymax") 
 veg <- st_crop(veg, ext)
+
 ggplot() + geom_sf(data=veg, aes(fill = `National_`))
 ```
 
 ```{r inatdata}
-# Kiggelaria africana (Wild Peach)
-# Virgilia oroboides (Cape Keurboom)
-# Virgilia divaricata (Garden Route Keurboom)
-# read in inat observations for Rapanea melanophloeos (Cape Beech)
-rm <- get_inat_obs(taxon_name = "Rapanea melanophloeos",
-                   bounds = c(-35, 18, -33.5, 18.5),
-                   maxresults = 1000)
-dim(rm)
-# take only observations with geographic precision, southern hemisphere, has coordinates, isn't captive and is of research quality 
-rm <- rm %>% filter(positional_accuracy<46 & 
-                latitude<0 &
-                !is.na(latitude) &
-                captive_cultivated == "false" &
-                quality_grade == "research")
-dim(rm)
-# make rm a spartial object
-rm <- st_as_sf(rm, coords = c("longitude", "latitude"), crs = 4326)
-```
+# Retrieve iNaturalist data for the specified species
+inat_data <- get_inat_obs(taxon_name = species_name,
+                          bounds = bounds,
+                          maxresults = 1000)
 
-```{r plotting}
+dim(inat_data)
+
+# Filter observations for accuracy, geographic location, and research quality
+inat_data <- inat_data %>% 
+  filter(positional_accuracy < 46 & 
+         latitude < 0 &
+         !is.na(latitude) &
+         captive_cultivated == "false" &
+         quality_grade == "research")
+
+dim(inat_data)
+
+# Convert to spatial object
+inat_data <- st_as_sf(inat_data, coords = c("longitude", "latitude"), crs = 4326)
 ggplot() + 
   annotation_map_tile(type = "osm", progress = "none") + 
-  geom_sf(data=rm)
+  geom_sf(data = inat_data)
 ```
 
 ```{r reprojecting}
-#Get the remnants layer
 vegr <- st_read("data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous_Remnants.shp")
-rm <- st_transform(rm, st_crs(vegr)) 
-#call the dimensions of rm
-dim(rm)  
 
-# remove observtaions in urban area
-rm <- st_intersection(rm, vegr)
-dim(rm)
-ggplot() + 
-  annotation_map_tile(type = "osm", progress = "none") + 
-  geom_sf(data=rm)
+inat_data <- st_transform(inat_data, st_crs(vegr))
 
-pal <- wes_palette("Zissou1", 8, type = "continuous")
+inat_data <- st_intersection(inat_data, vegr)
+
+dim(inat_data)
 
 ggplot() + 
   annotation_map_tile(type = "osm", progress = "none") + 
-  geom_sf(data=rm, aes(col = National_)) +
-  scale_colour_manual(values = pal)
-rm %>% group_by(National_) %>% summarise(n())
+  geom_sf(data = inat_data)
+
 ```
-343 rm outside saf
 
 ```{r buffering}
-#Find the localities that are not in Southern Afrotemperate Forest and add a 250m buffer
-nsaf <- rm %>% 
+nsaf <- inat_data %>% 
   filter(National_ != "Southern Afrotemperate Forest") %>%
   st_buffer(dist = 250)
-#Get the number of unique iNaturalist record numbers
-length(unique(nsaf$id)) 
-#Intersect new polygons with veg remnants and filter for those that overlap Southern Afrotemperate Forest only
-nsaf <- st_intersection(nsaf, vegr) %>% filter(National_.1 == "Southern Afrotemperate Forest")
-#Get the number of unique iNaturalist record numbers that overlap PSF
+
 length(unique(nsaf$id))
-314-75
+
+nsaf <- st_intersection(nsaf, vegr) %>% 
+  filter(National_.1 == "Southern Afrotemperate Forest")
+
+length(unique(nsaf$id))
 ```
-314 rm records originally outside saf
-75 rm records near saf
-239 remain outside saf
 
-```{R final}
+227 vo records originally outside saf, 23 vo records near saf (204 remain outside)
+389 ka records originally outside saf, 46 ka records near saf
 
-# Define a color palette function for National_ categories
-pal <- colorFactor(viridis::viridis(length(unique(rm$National_))), 
-                   domain = rm$National_)
+```{r final}
+inat_data <- st_transform(inat_data, 4326)
 
-leaflet(rm) %>%
-  addTiles() %>%  # Base map
+pal <- colorFactor(viridis::viridis(length(unique(inat_data$National_))), 
+                   domain = inat_data$National_)
+
+leaflet(inat_data) %>%
+  addTiles() %>%  
   addCircleMarkers(
     radius = 4, 
-    color = ~pal(National_),  # Apply color function
+    color = ~pal(National_),  
     popup = ~paste0("<b>National Vegetation:</b> ", National_, "<br>",
                     "<b>Observation Link:</b> <a href='", url, "' target='_blank'>iNat</a>"),
     group = "Observations"
@@ -125,40 +123,49 @@ leaflet(rm) %>%
   addLegend(
     "bottomright",
     pal = pal,
-    values = rm$National_,
+    values = inat_data$National_,
     title = "National Vegetation Type",
     opacity = 1
   )
-```
-
-```{r all}
-# Load leaflet and create custom icons for species
-library(leaflet)
-
-species_icons <- iconList(
-  "Rapanea melanophloeos" = makeIcon("icons/rapanea.png", iconWidth = 20, iconHeight = 20),
-  "Kiggelaria africana" = makeIcon("icons/kiggelaria.png", iconWidth = 20, iconHeight = 20),
-  "Virgilia oroboides" = makeIcon("icons/virgilia_o.png", iconWidth = 20, iconHeight = 20),
-  "Virgilia divaricata" = makeIcon("icons/virgilia_d.png", iconWidth = 20, iconHeight = 20)
-)
-
-leaflet(inat_data) %>%
-  addTiles() %>%
-  addMarkers(
-    icon = ~species_icons[species],  # Assign species-specific icons
-    popup = ~paste0("<b>Species:</b> ", species, "<br>",
-                    "<b>National Vegetation:</b> ", National_, "<br>",
-                    "<b>Distance from Afrotemperate Forest:</b> ", within_250m, "<br>",
-                    "<b>Observation Link:</b> <a href='", url, "' target='_blank'>iNat</a>"),
-    group = "Observations"
-  ) %>%
-  addLegend(
-    "bottomright",
-    pal = pal,
-    values = inat_data$color_group,
-    title = "Distance & Vegetation Type",
-    opacity = 1
-  )
-
 
 ```
+
+```{r table}
+
+# Convert sf objects to regular data frames before summarizing
+no_buffer_summary <- inat_data %>%
+  st_drop_geometry() %>%
+  group_by(National_) %>%
+  summarise(count_no_buffer = n())
+
+# Get count of buffered points per vegetation type
+buffer_change_summary <- nsaf %>%
+  st_drop_geometry() %>%
+  group_by(National_) %>%
+  summarise(count_buffer_change = n())  # Renamed to avoid confusion
+
+# Compute total buffered points
+total_buffered <- sum(buffer_change_summary$count_buffer_change, na.rm = TRUE)
+
+# Merge summaries
+combined_summary <- full_join(no_buffer_summary, buffer_change_summary, by = "National_")
+
+# Ensure missing values are replaced with 0
+combined_summary <- combined_summary %>%
+  mutate(count_no_buffer = replace_na(count_no_buffer, 0),
+         count_buffer_change = replace_na(count_buffer_change, 0))
+
+# Adjust count_buffer correctly
+combined_summary <- combined_summary %>%
+  mutate(count_buffer = ifelse(National_ == "Southern Afrotemperate Forest",
+                               count_no_buffer + total_buffered,  # SAF gets the total buffer count
+                               count_no_buffer - count_buffer_change))  # Others get adjusted values
+
+# Print table
+print(combined_summary)
+
+```
+
+The no buffer count column the vegetation type that the observation is in before buffering. The buffer count is the number of that vegetation type that is within 250m of Southern Afrotemprate Forest.
+
+There are points in parks and botanical gardens. 
