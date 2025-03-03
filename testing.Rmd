@@ -24,6 +24,9 @@ library(leafpop)
 library(wesanderson)
 library(gridExtra)
 library(grid)
+library(patchwork)
+library(cowplot)
+library(viridis)
 ```
 
 
@@ -57,6 +60,9 @@ for (species_name in species_list) {
 
   # Ensure National_ is a character (fix color mapping issue)
   inat_data$National_ <- as.character(inat_data$National_)
+  
+  # Store in the list
+  species_data[[species_name]] <- inat_data
 
   # Get count of non-buffered points per vegetation type
   no_buffer_summary <- inat_data %>%
@@ -113,7 +119,6 @@ combined_summary <- combined_summary %>%
   grid.newpage()
   grid.draw(table_plot)  
 }
-
 ```
 
 ```{r combo}
@@ -146,36 +151,52 @@ ggplot() +
 ```
 
 ```{r}
-# Define species-specific icons correctly using list()
-species_icons <- list(
-  "Virgilia oroboides" = makeAwesomeIcon(icon = "tree", markerColor = "blue", library = "fa"),
-  "Virgilia divaricata" = makeAwesomeIcon(icon = "leaf", markerColor = "green", library = "fa"),
-  "Rapanea melanophloeos" = makeAwesomeIcon(icon = "pagelines", markerColor = "red", library = "fa"),
-  "Kiggelaria africana" = makeAwesomeIcon(icon = "envira", markerColor = "purple", library = "fa")
+library(leaflet)
+library(dplyr)
+library(sf)
+library(viridis)
+
+# Ensure dataset is in WGS 84
+combined_data <- st_transform(combined_data, crs = 4326)
+
+# Define color palette for vegetation type
+veg_types <- unique(combined_data$National_)
+veg_colors <- setNames(viridis(length(veg_types)), veg_types)
+
+# Define species icons using FontAwesome symbols
+species_icons <- awesomeIconList(
+  "Virgilia oroboides" = makeAwesomeIcon(icon = "circle", markerColor = "blue", iconColor = "white"),
+  "Virgilia divaricata" = makeAwesomeIcon(icon = "play", markerColor = "green", iconColor = "white"),
+  "Rapanea melanophloeos" = makeAwesomeIcon(icon = "square", markerColor = "purple", iconColor = "white"),
+  "Kiggelaria africana" = makeAwesomeIcon(icon = "star", markerColor = "red", iconColor = "white")
 )
 
-# Convert geometry to separate Latitude and Longitude columns
-combined_data <- combined_data %>%
-  mutate(
-    Longitude = st_coordinates(geometry)[, 1],
-    Latitude = st_coordinates(geometry)[, 2]
-  )
-
-# Define a function to safely retrieve icons
-get_icon <- function(species) {
-  species_icons[[species]] %||% species_icons[["default"]]
-}
-
+# Leaflet map with correct icons
 leaflet(combined_data) %>%
   addTiles() %>%
   addAwesomeMarkers(
-    lng = ~Longitude,
-    lat = ~Latitude,
-    icon = ~sapply(Species, get_icon),  # Apply function row-wise
-    popup = ~paste0("<b>Species:</b> ", Species, "<br>",
-                    "<b>National Vegetation:</b> ", National_, "<br>",
-                    "<b>Observation Link:</b> <a href='", url, "' target='_blank'>iNat</a>")
+    icon = ~species_icons[Species],  # Assign correct icon per species
+    label = ~paste(Species, "<br>", National_),
+    popup = ~paste("<b>Species:</b>", Species, "<br>",
+                   "<b>Vegetation Type:</b>", National_)
+  ) %>%
+  
+  # Vegetation type legend
+  addLegend("bottomright", 
+            colors = veg_colors, 
+            labels = veg_types, 
+            title = "National Vegetation Type") %>%
+  
+  # Species legend (HTML using FontAwesome)
+  addControl(
+    html = paste0(
+      "<strong>Species Legend</strong><br>",
+      "<i class='fa fa-circle' style='color:blue'></i> Virgilia oroboides<br>",
+      "<i class='fa fa-play' style='color:green'></i> Virgilia divaricata<br>",
+      "<i class='fa fa-square' style='color:purple'></i> Rapanea melanophloeos<br>",
+      "<i class='fa fa-star' style='color:red'></i> Kiggelaria africana"
+    ),
+    position = "bottomleft"
   )
-
 
 ``` 
