@@ -6,7 +6,11 @@ output: rmarkdown::github_document
 always_allow_html: true
 ---
 
-```{r setup, include=FALSE}
+BIO4000W GIS Deliverable
+
+Species that are Southern Afrotempraet Forest pioneers: Virgilia oroboides (Cape Keurboom), Virgilia divaricata (Garden Route Keurboom), Rapanea melanophloeos (Cape Beech), and Kiggelaria africana (Wild Peach).
+
+```{r setup}
 knitr::opts_chunk$set(echo = TRUE)
 library(sf)
 library(tidyverse)
@@ -18,122 +22,202 @@ library(htmltools)
 library(mapview) 
 library(leafpop) 
 library(wesanderson)
+library(gridExtra)
+library(grid)
+library(patchwork)
+library(cowplot)
+library(viridis)
 ```
 
-## BIO4000W GIS Deliverable
+```{r sp.plots}
+species_list <- c("Virgilia oroboides", "Virgilia divaricata", 
+                  "Rapanea melanophloeos", "Kiggelaria africana")
+species_plots <- list()
+species_data <- list()
 
-```{r vegdata}
+# get veg data 
 veg <- st_read("data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous.shp")
-#st_write(veg, "data/cape_peninsula/veg/Vegetation_Indigenous_duplicate.shp", append = FALSE)
-names(veg)
-ggplot() + 
-  geom_sf(data = veg, aes(fill = National_)) +
-  scale_fill_viridis_d() +  # Uses a nice color scale
-  theme_minimal()
-
-```
-
-```{r cropping, echo=FALSE}
-ext <- c(-66642.18, -3809853.29, -44412.18, -3750723.29) 
-names(ext) <- c("xmin", "ymin", "xmax", "ymax") 
-veg <- st_crop(veg, ext)
-ggplot() + geom_sf(data=veg, aes(fill = `National_`))
-```
-
-```{r inatdata}
-# Kiggelaria africana (Wild Peach)
-# Virgilia oroboides (Cape Keurboom)
-# Virgilia divaricata (Garden Route Keurboom)
-# read in inat observations for Rapanea melanophloeos (Cape Beech)
-rm <- get_inat_obs(taxon_name = "Rapanea melanophloeos",
-                   bounds = c(-35, 18, -33.5, 18.5),
-                   maxresults = 1000)
-dim(rm)
-# take only observations with geographic precision, southern hemisphere, has coordinates, isn't captive and is of research quality 
-rm <- rm %>% filter(positional_accuracy<46 & 
-                latitude<0 &
-                !is.na(latitude) &
-                captive_cultivated == "false" &
-                quality_grade == "research")
-dim(rm)
-# make rm a spartial object
-rm <- st_as_sf(rm, coords = c("longitude", "latitude"), crs = 4326)
-```
-
-```{r plotting}
-ggplot() + 
-  annotation_map_tile(type = "osm", progress = "none") + 
-  geom_sf(data=rm)
-```
-
-```{r reprojecting}
-#Get the remnants layer
+st_write(veg, "data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous_duplicate.shp", append = FALSE)
 vegr <- st_read("data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous_Remnants.shp")
-rm <- st_transform(rm, st_crs(vegr)) 
-#call the dimensions of rm
-dim(rm)  
+st_write(vegr, "data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous_duplicate.shp", append = FALSE)
 
-# remove observtaions in urban area
-rm <- st_intersection(rm, vegr)
-dim(rm)
-ggplot() + 
-  annotation_map_tile(type = "osm", progress = "none") + 
-  geom_sf(data=rm)
+# Crop vegr 
+  ext <- c(-66642.18, -3809853.29, -44412.18, -3750723.29)
+  names(ext) <- c("xmin", "ymin", "xmax", "ymax") 
+  vegr <- st_crop(vegr, ext)
 
-pal <- wes_palette("Zissou1", 8, type = "continuous")
+for (species_name in species_list) {
+  # Retrieve iNaturalist data
+  inat_data <- get_inat_obs(taxon_name = species_name,
+                            bounds = c(-35, 18, -33.5, 18.5),
+                            maxresults = 1000)
+  
+  # Filter iNaturalist data
+  inat_data <- inat_data %>% 
+    filter(positional_accuracy < 46 & 
+           latitude < 0 &
+           !is.na(latitude) &
+           captive_cultivated == "false" &
+           quality_grade == "research")
 
-ggplot() + 
-  annotation_map_tile(type = "osm", progress = "none") + 
-  geom_sf(data=rm, aes(col = National_)) +
-  scale_colour_manual(values = pal)
-rm %>% group_by(National_) %>% summarise(n())
-```
+  # Convert to spatial object
+  inat_data <- st_as_sf(inat_data, coords = c("longitude", "latitude"), crs = 4326)
+  inat_data <- st_transform(inat_data, st_crs(vegr))
+  inat_data <- st_intersection(inat_data, vegr)  # Remove points in urban areas
 
-343 rm outside saf
-
-```{r buffering}
-#Find the localities that are not in Southern Afrotemperate Forest and add a 250m buffer
-nsaf <- rm %>% 
+  # Ensure National_ is a character (fix color mapping issue)
+  inat_data$National_ <- as.character(inat_data$National_)
+  
+  # Store in the list
+  species_data[[species_name]] <- inat_data
+  
+  # buffer points not in Southern Afrotemprate Forest
+  nsaf <- inat_data %>% 
   filter(National_ != "Southern Afrotemperate Forest") %>%
-  st_buffer(dist = 250)
-#Get the number of unique iNaturalist record numbers
-length(unique(nsaf$id)) 
-#Intersect new polygons with veg remnants and filter for those that overlap Southern Afrotemperate Forest only
-nsaf <- st_intersection(nsaf, vegr) %>% filter(National_.1 == "Southern Afrotemperate Forest")
-#Get the number of unique iNaturalist record numbers that overlap PSF
-length(unique(nsaf$id))
-314-75
+  st_buffer(dist = 250) 
+  #Intersect new polygons with veg remnants and filter for those that overlap Southern Afrotemperate Forest only
+  nsaf <- st_intersection(nsaf, vegr) %>% filter(National_.1 == "Southern Afrotemperate Forest")
+
+  # Get count of non-buffered points per vegetation type
+  no_buffer_summary <- inat_data %>%
+    st_drop_geometry() %>%
+    group_by(National_) %>%
+    summarise(count_no_buffer = n())
+
+  # Get count of buffered points per vegetation type
+  buffer_change_summary <- nsaf %>%
+    st_drop_geometry() %>%
+    group_by(National_) %>%
+    summarise(count_buffer_change = n())  # Renamed to avoid confusion
+
+  # Compute total buffered points
+  total_buffered <- sum(buffer_change_summary$count_buffer_change, na.rm = TRUE)
+
+  # Merge summaries
+  combined_summary <- full_join(no_buffer_summary, buffer_change_summary, by = "National_")
+  combined_summary <- combined_summary %>%
+    mutate(count_no_buffer = replace_na(count_no_buffer, 0),
+           count_buffer_change = replace_na(count_buffer_change, 0))
+
+  # Adjust count_buffer correctly
+  combined_summary <- combined_summary %>%
+    mutate(count_buffer = ifelse(National_ == "Southern Afrotemperate Forest",
+                                 count_no_buffer + total_buffered,  # SAF gets the initial count plus total buffer count 
+                                 pmax(0,count_no_buffer - count_buffer_change)))  # Others get adjusted values
+  
+  # Rename columns for clarity
+combined_summary <- combined_summary %>%
+  rename(
+    "Vegetation Type" = National_,
+    "Initial Count" = count_no_buffer,
+    "Buffered Change" = count_buffer_change,
+    "Final Count" = count_buffer
+  )
+
+  # Create the Plot
+  species_plot <- ggplot() +
+    annotation_map_tile(type = "osm", progress = "none") +
+    geom_sf(data = inat_data, aes(color = National_), shape = 16) +  # Uniform shape
+    labs(title = paste("Observations of", species_name)) +
+    theme_minimal()
+
+  # Create the Table
+  table_plot <- tableGrob(combined_summary)
+
+  # Print Separately
+  print(species_plot)  # Print the figure
+
+  # Move to a new page & draw the table
+  grid.newpage()
+  grid.draw(table_plot)  
+}
 ```
 
-314 rm records originally outside saf 75 rm records near saf 239 remain outside saf
+```{r combo}
+# Combine all species data into a single dataframe
+combined_data <- bind_rows(species_data, .id = "Species")
 
-```{R final}
+# Define a color palette for vegetation type
+veg_colors <- viridis::viridis(length(unique(combined_data$National_)))
 
-# Define a color palette function for National_ categories
-pal <- colorFactor(viridis::viridis(length(unique(rm$National_))), 
-                   domain = rm$National_)
+# Define unique shapes for each species
+species_shapes <- c("Virgilia oroboides" = 16,  # Filled circle
+                    "Virgilia divaricata" = 17, # Filled triangle
+                    "Rapanea melanophloeos" = 18, # Filled diamond
+                    "Kiggelaria africana" = 15) # Filled square
 
-leaflet(rm) %>%
-  addTiles() %>%  # Base map
+# Generate the final plot
+ggplot() +
+  annotation_map_tile(type = "osm", progress = "none") +
+  geom_sf(data = combined_data, 
+          aes(color = National_, shape = Species), 
+          size = 3) +  # Adjust size for better visibility
+  scale_color_manual(values = veg_colors) +  # Assign vegetation colors
+  scale_shape_manual(values = species_shapes) +  # Assign species shapes
+  labs(title = "All Four Species Observations", 
+       color = "National Vegetation Type", 
+       shape = "Species") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+```
+
+```{r interactive}
+# Ensure data is in WGS84 (longitude-latitude)
+combined_data <- combined_data %>% st_transform(4326)
+vegr <- st_transform(vegr, 4326)
+
+# Define a color palette for speceis
+library(RColorBrewer)
+species_palette <- colorFactor(brewer.pal(min(9, length(unique(combined_data$Species))), "Set1"), combined_data$Species)
+
+# Define a color palette for vegetation type
+veg_palette <- colorFactor(viridis(length(unique(vegr$National_))), vegr$National_)
+
+# Create iNaturalist links for popups
+combined_data <- combined_data %>%
+  mutate(iNat_link = paste0("<a href='https://www.inaturalist.org/observations/", id, 
+                            "' target='_blank'>View on iNaturalist</a>"))
+
+# Leaflet Map
+leaflet(combined_data) %>%
+  addTiles() %>%
+  addPolygons(
+    data = vegr,
+    fillColor = ~veg_palette(National_),  # Use colorFactor function
+    color = ~veg_palette(National_), 
+    weight = 1,
+    fillOpacity = 0.5,
+    popup = ~paste("<b>Vegetation Type:</b>", National_),
+    group = "Vegetation Remnants"
+  ) %>%
   addCircleMarkers(
-    radius = 4, 
-    color = ~pal(National_),  # Apply color function
-    popup = ~paste0("<b>National Vegetation:</b> ", National_, "<br>",
-                    "<b>Observation Link:</b> <a href='", url, "' target='_blank'>iNat</a>"),
+    data = combined_data,
+    lng = ~st_coordinates(geometry)[,1], 
+    lat = ~st_coordinates(geometry)[,2], 
+    radius = 5, 
+    color = ~species_palette(Species),  # Use colorFactor function
+    fillOpacity = 0.9,
+    popup = ~paste("<b>Species:</b>", Species, "<br>",
+                   "<b>Vegetation Type:</b>", National_, "<br>",
+                   iNat_link),
     group = "Observations"
   ) %>%
-  addLegend(
-    "bottomright",
-    pal = pal,
-    values = rm$National_,
-    title = "National Vegetation Type",
-    opacity = 1
+  addLegend("bottomright", 
+            pal = species_palette, 
+            values = combined_data$Species, 
+            title = "Species") %>%
+  addLegend("topright", 
+            pal = veg_palette, 
+            values = vegr$National_, 
+            title = "Vegetation Type") %>%
+  addLayersControl(
+    overlayGroups = c("Vegetation Remnants", "Observations"),
+    options = layersControlOptions(collapsed = FALSE)
   )
-```
-
-```{r table}
-inat_data %>%
-  group_by(National_) %>%
-  summarise(count = n())
 
 ```
+
+[343 rm outside saf](BIO4000W GIS DeliverableSpecies that are Southern Afrotempraet Forest pioneers: Virgilia oroboides (Cape Keurboom), Virgilia divaricata (Garden Route Keurboom), Rapanea melanophloeos (Cape Beech), and Kiggelaria africana (Wild Peach).{r setup} knitr::opts_chunk\$set(echo = TRUE) library(sf) library(tidyverse) library(rinat) library(rosm) library(ggspatial) library(leaflet) library(htmltools) library(mapview) library(leafpop) library(wesanderson) library(gridExtra) library(grid) library(patchwork) library(cowplot) library(viridis){r sp.plots} species_list \<- c("Virgilia oroboides", "Virgilia divaricata", "Rapanea melanophloeos", "Kiggelaria africana") species_plots \<- list() species_data \<- list()
+
+# 
