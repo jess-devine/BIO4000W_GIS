@@ -150,53 +150,64 @@ ggplot() +
 
 ```
 
-```{r}
+```{r interactive}
+# Load libraries
 library(leaflet)
+library(htmltools)
 library(dplyr)
 library(sf)
 library(viridis)
 
-# Ensure dataset is in WGS 84
-combined_data <- st_transform(combined_data, crs = 4326)
+# Ensure data is in WGS84 (longitude-latitude)
+filtered_data <- filtered_data %>% st_transform(4326)
+vegr <- st_transform(vegr, 4326)
 
-# Define color palette for vegetation type
-veg_types <- unique(combined_data$National_)
-veg_colors <- setNames(viridis(length(veg_types)), veg_types)
+library(RColorBrewer)
+species_palette <- colorFactor(brewer.pal(min(9, length(unique(filtered_data$Species))), "Set1"), filtered_data$Species)
 
-# Define species icons using FontAwesome symbols
-species_icons <- awesomeIconList(
-  "Virgilia oroboides" = makeAwesomeIcon(icon = "circle", markerColor = "blue", iconColor = "white"),
-  "Virgilia divaricata" = makeAwesomeIcon(icon = "play", markerColor = "green", iconColor = "white"),
-  "Rapanea melanophloeos" = makeAwesomeIcon(icon = "square", markerColor = "purple", iconColor = "white"),
-  "Kiggelaria africana" = makeAwesomeIcon(icon = "star", markerColor = "red", iconColor = "white")
-)
+# Define a color palette for vegetation type
+veg_palette <- colorFactor(viridis(length(unique(vegr$National_))), vegr$National_)
 
-# Leaflet map with correct icons
-leaflet(combined_data) %>%
+# Create iNaturalist links for popups
+filtered_data <- filtered_data %>%
+  mutate(iNat_link = paste0("<a href='https://www.inaturalist.org/observations/", id, 
+                            "' target='_blank'>View on iNaturalist</a>"))
+
+# Leaflet Map
+leaflet(filtered_data) %>%
   addTiles() %>%
-  addAwesomeMarkers(
-    icon = ~species_icons[Species],  # Assign correct icon per species
-    label = ~paste(Species, "<br>", National_),
-    popup = ~paste("<b>Species:</b>", Species, "<br>",
-                   "<b>Vegetation Type:</b>", National_)
+  addPolygons(
+    data = vegr,
+    fillColor = ~veg_palette(National_),  # Use colorFactor function
+    color = ~veg_palette(National_), 
+    weight = 1,
+    fillOpacity = 0.5,
+    popup = ~paste("<b>Vegetation Type:</b>", National_),
+    group = "Vegetation Remnants"
   ) %>%
-  
-  # Vegetation type legend
+  addCircleMarkers(
+    data = filtered_data,
+    lng = ~st_coordinates(geometry)[,1], 
+    lat = ~st_coordinates(geometry)[,2], 
+    radius = 5, 
+    color = ~species_palette(Species),  # Use colorFactor function
+    fillOpacity = 0.9,
+    popup = ~paste("<b>Species:</b>", Species, "<br>",
+                   "<b>Vegetation Type:</b>", National_, "<br>",
+                   iNat_link),
+    group = "Observations"
+  ) %>%
   addLegend("bottomright", 
-            colors = veg_colors, 
-            labels = veg_types, 
-            title = "National Vegetation Type") %>%
-  
-  # Species legend (HTML using FontAwesome)
-  addControl(
-    html = paste0(
-      "<strong>Species Legend</strong><br>",
-      "<i class='fa fa-circle' style='color:blue'></i> Virgilia oroboides<br>",
-      "<i class='fa fa-play' style='color:green'></i> Virgilia divaricata<br>",
-      "<i class='fa fa-square' style='color:purple'></i> Rapanea melanophloeos<br>",
-      "<i class='fa fa-star' style='color:red'></i> Kiggelaria africana"
-    ),
-    position = "bottomleft"
+            pal = species_palette, 
+            values = filtered_data$Species, 
+            title = "Species") %>%
+  addLegend("topright", 
+            pal = veg_palette, 
+            values = vegr$National_, 
+            title = "Vegetation Type") %>%
+  addLayersControl(
+    overlayGroups = c("Vegetation Remnants", "Observations"),
+    options = layersControlOptions(collapsed = FALSE)
   )
 
 ``` 
