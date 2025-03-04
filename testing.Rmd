@@ -36,8 +36,16 @@ species_list <- c("Virgilia oroboides", "Virgilia divaricata",
 species_plots <- list()
 species_data <- list()
 
-library(grid)
-library(gridExtra)
+# get veg data 
+veg <- st_read("data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous.shp")
+st_write(veg, "data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous_duplicate.shp", append = FALSE)
+vegr <- st_read("data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous_Remnants.shp")
+st_write(vegr, "data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous_duplicate.shp", append = FALSE)
+
+# Crop vegr 
+  ext <- c(-66642.18, -3809853.29, -44412.18, -3750723.29)
+  names(ext) <- c("xmin", "ymin", "xmax", "ymax") 
+  vegr <- st_crop(vegr, ext)
 
 for (species_name in species_list) {
   # Retrieve iNaturalist data
@@ -151,30 +159,24 @@ ggplot() +
 ```
 
 ```{r interactive}
-# Load libraries
-library(leaflet)
-library(htmltools)
-library(dplyr)
-library(sf)
-library(viridis)
-
 # Ensure data is in WGS84 (longitude-latitude)
-filtered_data <- filtered_data %>% st_transform(4326)
+combined_data <- combined_data %>% st_transform(4326)
 vegr <- st_transform(vegr, 4326)
 
+# Define a color palette for speceis
 library(RColorBrewer)
-species_palette <- colorFactor(brewer.pal(min(9, length(unique(filtered_data$Species))), "Set1"), filtered_data$Species)
+species_palette <- colorFactor(brewer.pal(min(9, length(unique(combined_data$Species))), "Set1"), combined_data$Species)
 
 # Define a color palette for vegetation type
 veg_palette <- colorFactor(viridis(length(unique(vegr$National_))), vegr$National_)
 
 # Create iNaturalist links for popups
-filtered_data <- filtered_data %>%
+combined_data <- combined_data %>%
   mutate(iNat_link = paste0("<a href='https://www.inaturalist.org/observations/", id, 
                             "' target='_blank'>View on iNaturalist</a>"))
 
 # Leaflet Map
-leaflet(filtered_data) %>%
+leaflet(combined_data) %>%
   addTiles() %>%
   addPolygons(
     data = vegr,
@@ -186,7 +188,7 @@ leaflet(filtered_data) %>%
     group = "Vegetation Remnants"
   ) %>%
   addCircleMarkers(
-    data = filtered_data,
+    data = combined_data,
     lng = ~st_coordinates(geometry)[,1], 
     lat = ~st_coordinates(geometry)[,2], 
     radius = 5, 
@@ -199,7 +201,7 @@ leaflet(filtered_data) %>%
   ) %>%
   addLegend("bottomright", 
             pal = species_palette, 
-            values = filtered_data$Species, 
+            values = combined_data$Species, 
             title = "Species") %>%
   addLegend("topright", 
             pal = veg_palette, 
