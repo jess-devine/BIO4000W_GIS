@@ -1,0 +1,4 @@
+*.r linguist-detectable
+*.R linguist-detectable
+*.Rmd linguist-detectable
+*.js linguist-vendored
