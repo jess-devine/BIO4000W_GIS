@@ -2,8 +2,7 @@
 title: "README"
 author: "Jess Devine"
 date: "2025-02-27"
-output: rmarkdown::github_document
-always_allow_html: true
+output: html_document
 ---
 
 ### BIO4000W GIS Deliverable
