@@ -7,7 +7,7 @@ output: html_document
 
 ### BIO4000W GIS Deliverable
 
-**View the HTML here**: https://raw.githack.com/jess-devine/BIO4000W_GIS/refs/heads/main/README.html
+**View the HTML here**: https://htmlview.glitch.me/?https://raw.githubusercontent.com/jess-devine/BIO4000W_GIS/refs/heads/main/README.html 
 <br>
 # Is Southern Afrotemperate Forest Expanding in the Cape Peninsula?
 <br>
