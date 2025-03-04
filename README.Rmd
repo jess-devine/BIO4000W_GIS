@@ -6,11 +6,17 @@ output: rmarkdown::github_document
 always_allow_html: true
 ---
 
-BIO4000W GIS Deliverable
+### BIO4000W GIS Deliverable
+
+Is Southern Afrotemperate Forest Expanding in the Cape Peninsula?
+
+Investigating whether pioneer forest species indicates forest expansion. Using GIS and species occurrence data to assess forest dynamics. 
 
 Species that are Southern Afrotempraet Forest pioneers: Virgilia oroboides (Cape Keurboom), Virgilia divaricata (Garden Route Keurboom), Rapanea melanophloeos (Cape Beech), and Kiggelaria africana (Wild Peach).
 
-```{r setup}
+Observation data from iNaturalist and City of Cape Town vegetation layers will be used. 
+
+```{r setup, echo=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(sf)
 library(tidyverse)
@@ -133,6 +139,10 @@ combined_summary <- combined_summary %>%
 }
 ```
 
+All of the tree species, except Rapanea melanphloeos, had more observations more than 250m from Southern Afrotemprate Forest than within this vegetation type. However, the extent of Southern Afrotemprate Forest is small on the Cape Peninsula.
+
+The majority of species seem to be expanding into Peninsula Sandstone Fynbos more than other vegetation types. However, Kigillaria africana seems to be expanding more into Peninsula Granite Fynbos.
+
 ```{r combo}
 # Combine all species data into a single dataframe
 combined_data <- bind_rows(species_data, .id = "Species")
@@ -217,7 +227,7 @@ leaflet(combined_data) %>%
   )
 
 ```
+From these maps it apears that Southern Afrotemprate forest may be expanding in the Northern half of the Cape Peninsula. Historical pine plantations that are now nature reserves in this region may be hotspots for forest expansion, likely because fire was excluded for a long period of time while the plantations were in operation. Additionally, Silvermine dam may be facilitating Southern Afrotemprate Forest expansion.
 
-[343 rm outside saf](BIO4000W GIS DeliverableSpecies that are Southern Afrotempraet Forest pioneers: Virgilia oroboides (Cape Keurboom), Virgilia divaricata (Garden Route Keurboom), Rapanea melanophloeos (Cape Beech), and Kiggelaria africana (Wild Peach).{r setup} knitr::opts_chunk\$set(echo = TRUE) library(sf) library(tidyverse) library(rinat) library(rosm) library(ggspatial) library(leaflet) library(htmltools) library(mapview) library(leafpop) library(wesanderson) library(gridExtra) library(grid) library(patchwork) library(cowplot) library(viridis){r sp.plots} species_list \<- c("Virgilia oroboides", "Virgilia divaricata", "Rapanea melanophloeos", "Kiggelaria africana") species_plots \<- list() species_data \<- list()
+However, some of the observations are in parks, botanical gardens and plantations. This likely accounts for the majority of points in Cape Flats Sand Fynbos. Aditionally, it is likely natural for there to be Southern Afrotemprate Forest to exit around small streams and rivers but the vegetation map scal is too course to map these. 
 
-# 
