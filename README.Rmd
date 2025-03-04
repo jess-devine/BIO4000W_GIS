@@ -7,15 +7,15 @@ output: html_document
 
 ### BIO4000W GIS Deliverable
 
-View the html here: https://raw.githack.com/jess-devine/BIO4000W_GIS/refs/heads/main/README.html 
-
-Is Southern Afrotemperate Forest Expanding in the Cape Peninsula?
-
-Investigating whether pioneer forest species indicates forest expansion. Using GIS and species occurrence data to assess forest dynamics. 
-
-Species that are Southern Afrotempraet Forest pioneers: Virgilia oroboides (Cape Keurboom), Virgilia divaricata (Garden Route Keurboom), Rapanea melanophloeos (Cape Beech), and Kiggelaria africana (Wild Peach).
-
-Observation data from iNaturalist and City of Cape Town vegetation layers will be used. 
+**View the HTML here**: https://raw.githack.com/jess-devine/BIO4000W_GIS/refs/heads/main/README.html
+<br>
+# Is Southern Afrotemperate Forest Expanding in the Cape Peninsula?
+<br>
+Investigating whether pioneer forest species indicate forest expansion, using GIS and species occurrence data to assess forest dynamics.
+<br>
+Species that are Southern Afrotemperate Forest pioneers: *Virgilia oroboides* (Cape Keurboom), *Virgilia divaricata* (Garden Route Keurboom), *Rapanea melanophloeos* (Cape Beech), and *Kiggelaria africana* (Wild Peach).
+<br>
+Observation data from iNaturalist and City of Cape Town vegetation layers will be used.
 
 ```{r setup, echo=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -34,24 +34,24 @@ library(grid)
 library(patchwork)
 library(cowplot)
 library(viridis)
+library(RColorBrewer)
 ```
 
 ```{r sp.plots}
-species_list <- c("Virgilia oroboides", "Virgilia divaricata", 
-                  "Rapanea melanophloeos", "Kiggelaria africana")
+species_list <- c("Virgilia oroboides",  # I originally looked at Virgilia divaricata but there were very few observations. 
+                  "Rapanea melanophloeos", 
+                  "Kiggelaria africana") # credit to Stuart Heath for the suggestion 
 species_plots <- list()
 species_data <- list()
 
-# get veg data 
-veg <- st_read("data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous.shp")
-st_write(veg, "data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous_duplicate.shp", append = FALSE)
+# Get vegetation remnants data 
 vegr <- st_read("data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous_Remnants.shp")
 st_write(vegr, "data/cape_peninsula/cape_peninsula/veg/Vegetation_Indigenous_duplicate.shp", append = FALSE)
 
-# Crop vegr 
-  ext <- c(-66642.18, -3809853.29, -44412.18, -3750723.29)
-  names(ext) <- c("xmin", "ymin", "xmax", "ymax") 
-  vegr <- st_crop(vegr, ext)
+# Crop vegetation remnants data
+ext <- c(-66642.18, -3809853.29, -44412.18, -3750723.29)
+names(ext) <- c("xmin", "ymin", "xmax", "ymax") 
+vegr <- st_crop(vegr, ext)
 
 for (species_name in species_list) {
   # Retrieve iNaturalist data
@@ -67,9 +67,8 @@ for (species_name in species_list) {
            captive_cultivated == "false" &
            quality_grade == "research")
 
-  # Convert to spatial object
-  inat_data <- st_as_sf(inat_data, coords = c("longitude", "latitude"), crs = 4326)
-  inat_data <- st_transform(inat_data, st_crs(vegr))
+  inat_data <- st_as_sf(inat_data, coords = c("longitude", "latitude"), crs = 4326)  # Convert iNaturalist data to spatial object
+  inat_data <- st_transform(inat_data, st_crs(vegr)) # Charge projection to match vegetation remnants data 
   inat_data <- st_intersection(inat_data, vegr)  # Remove points in urban areas
 
   # Ensure National_ is a character (fix color mapping issue)
@@ -82,6 +81,7 @@ for (species_name in species_list) {
   nsaf <- inat_data %>% 
   filter(National_ != "Southern Afrotemperate Forest") %>%
   st_buffer(dist = 250) 
+  
   #Intersect new polygons with veg remnants and filter for those that overlap Southern Afrotemperate Forest only
   nsaf <- st_intersection(nsaf, vegr) %>% filter(National_.1 == "Southern Afrotemperate Forest")
 
@@ -106,7 +106,7 @@ for (species_name in species_list) {
     mutate(count_no_buffer = replace_na(count_no_buffer, 0),
            count_buffer_change = replace_na(count_buffer_change, 0))
 
-  # Adjust count_buffer correctly
+  # Add count_buffer
   combined_summary <- combined_summary %>%
     mutate(count_buffer = ifelse(National_ == "Southern Afrotemperate Forest",
                                  count_no_buffer + total_buffered,  # SAF gets the initial count plus total buffer count 
@@ -124,25 +124,23 @@ combined_summary <- combined_summary %>%
   # Create the Plot
   species_plot <- ggplot() +
     annotation_map_tile(type = "osm", progress = "none") +
-    geom_sf(data = inat_data, aes(color = National_), shape = 16) +  # Uniform shape
+    geom_sf(data = inat_data, aes(color = National_), shape = 16) + 
     labs(title = paste("Observations of", species_name)) +
     theme_minimal()
 
   # Create the Table
   table_plot <- tableGrob(combined_summary)
 
-  # Print Separately
-  print(species_plot)  # Print the figure
-
-  # Move to a new page & draw the table
+  # Print separately
+  print(species_plot) 
   grid.newpage()
   grid.draw(table_plot)  
 }
 ```
 
-All of the tree species, except Rapanea melanphloeos, had more observations more than 250m from Southern Afrotemprate Forest than within this vegetation type. However, the extent of Southern Afrotemprate Forest is small on the Cape Peninsula.
+All of the tree species, except *Rapanea melanophloeos*, had more observations more than 250m from Southern Afrotemperate Forest than within this vegetation type. However, the extent of Southern Afrotemperate Forest is small on the Cape Peninsula.  <br>  
+The majority of species seem to be expanding into Peninsula Sandstone Fynbos more than other vegetation types. However, *Kiggelaria africana* seems to be expanding more into Peninsula Granite Fynbos.
 
-The majority of species seem to be expanding into Peninsula Sandstone Fynbos more than other vegetation types. However, Kigillaria africana seems to be expanding more into Peninsula Granite Fynbos.
 
 ```{r combo}
 # Combine all species data into a single dataframe
@@ -152,17 +150,17 @@ combined_data <- bind_rows(species_data, .id = "Species")
 veg_colors <- viridis::viridis(length(unique(combined_data$National_)))
 
 # Define unique shapes for each species
-species_shapes <- c("Virgilia oroboides" = 16,  # Filled circle
-                    "Virgilia divaricata" = 17, # Filled triangle
-                    "Rapanea melanophloeos" = 18, # Filled diamond
-                    "Kiggelaria africana" = 15) # Filled square
+species_shapes <- c("Virgilia oroboides" = 15,  
+                    "Virgilia divaricata" = 16, 
+                    "Rapanea melanophloeos" = 17, 
+                    "Kiggelaria africana" = 18) 
 
 # Generate the final plot
 ggplot() +
   annotation_map_tile(type = "osm", progress = "none") +
   geom_sf(data = combined_data, 
           aes(color = National_, shape = Species), 
-          size = 3) +  # Adjust size for better visibility
+          size = 1.5) + 
   scale_color_manual(values = veg_colors) +  # Assign vegetation colors
   scale_shape_manual(values = species_shapes) +  # Assign species shapes
   labs(title = "All Four Species Observations", 
@@ -172,6 +170,8 @@ ggplot() +
   theme(legend.position = "right")
 
 ```
+<br>
+It's hard to see what's going on here so let's try a interactive map.
 
 ```{r interactive}
 # Ensure data is in WGS84 (longitude-latitude)
@@ -179,11 +179,11 @@ combined_data <- combined_data %>% st_transform(4326)
 vegr <- st_transform(vegr, 4326)
 
 # Define a color palette for speceis
-library(RColorBrewer)
-species_palette <- colorFactor(brewer.pal(min(9, length(unique(combined_data$Species))), "Set1"), combined_data$Species)
+species_palette <- colorFactor(brewer.pal(min(9, length(unique(combined_data$Species))), "PuOr"), combined_data$Species)
 
 # Define a color palette for vegetation type
 veg_palette <- colorFactor(viridis(length(unique(vegr$National_))), vegr$National_)
+
 
 # Create iNaturalist links for popups
 combined_data <- combined_data %>%
@@ -199,8 +199,7 @@ leaflet(combined_data) %>%
     color = ~veg_palette(National_), 
     weight = 1,
     fillOpacity = 0.5,
-    popup = ~paste("<b>Vegetation Type:</b>", National_),
-    group = "Vegetation Remnants"
+    popup = ~paste("<b>Vegetation Type:</b>", National_)
   ) %>%
   addCircleMarkers(
     data = combined_data,
@@ -211,8 +210,7 @@ leaflet(combined_data) %>%
     fillOpacity = 0.9,
     popup = ~paste("<b>Species:</b>", Species, "<br>",
                    "<b>Vegetation Type:</b>", National_, "<br>",
-                   iNat_link),
-    group = "Observations"
+                   iNat_link)
   ) %>%
   addLegend("bottomright", 
             pal = species_palette, 
@@ -221,14 +219,16 @@ leaflet(combined_data) %>%
   addLegend("topright", 
             pal = veg_palette, 
             values = vegr$National_, 
-            title = "Vegetation Type") %>%
-  addLayersControl(
-    overlayGroups = c("Vegetation Remnants", "Observations"),
-    options = layersControlOptions(collapsed = FALSE)
-  )
+            title = "Vegetation Type")
 
 ```
-From these maps it apears that Southern Afrotemprate forest may be expanding in the Northern half of the Cape Peninsula. Historical pine plantations that are now nature reserves in this region may be hotspots for forest expansion, likely because fire was excluded for a long period of time while the plantations were in operation. Additionally, Silvermine dam may be facilitating Southern Afrotemprate Forest expansion.
+From these maps, it appears that Southern Afrotemperate Forest may be expanding in the northern half of the Cape Peninsula. Historical pine plantations that are now nature reserves in this region may be hotspots for forest expansion, likely because fire was excluded for long periods while the plantations were in operation. Additionally, Silvermine Dam may be facilitating Southern Afrotemperate Forest expansion.
+<br>
+However, some of the observations are in parks, botanical gardens, and plantations. This likely accounts for the majority of points in Cape Flats Sand Fynbos. Additionally, it is likely natural for Southern Afrotemperate Forest to exist around small streams and rivers, but the vegetation map scale is too coarse to capture these accurately.
 
-However, some of the observations are in parks, botanical gardens and plantations. This likely accounts for the majority of points in Cape Flats Sand Fynbos. Aditionally, it is likely natural for there to be Southern Afrotemprate Forest to exit around small streams and rivers but the vegetation map scal is too course to map these. 
 
+```{r photo}
+knitr::include_graphics("photos/kiggelaria.jpeg")
+```
+<br>
+A resprouting Kiggelaria africana surrounded by Leucadendron argenteum (Tony Rebelo)
